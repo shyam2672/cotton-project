@@ -7,7 +7,7 @@ import os
 import cv2
 import numpy as np
 from io import BytesIO
-
+from gridfs import GridFS
 
 app = Flask(__name__)
 # Replace with a secure secret key
@@ -24,6 +24,7 @@ uploads_collection = db['uploads']
 UPLOAD_FOLDER = "C:\\Users\\SHYAM\\OneDrive\\Desktop\\cotton project\\server\\UPLOAD_FOLDER"
 
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+grid_fs = GridFS(db, collection='files')
 
 
 @app.route('/')
@@ -101,15 +102,15 @@ def upload_file():
     print(file)
     if file.filename == '':
         return 'No selected file'
-    print(file.filename)
     # Save the uploaded file to the specified upload folder
     if file:
         file.save(os.path.join(app.config['UPLOAD_FOLDER'], file.filename))
+        file_id = grid_fs.put(file.stream, filename=file.filename, content_type=file.content_type)
 
         # Store the file details along with user info in MongoDB
         user = users_collection.find_one({'username': current_user})
         inserted_id = uploads_collection.insert_one(
-            {'filename': file.filename, 'uploaded_by': user['_id']}).inserted_id
+            {'filid': file_id, 'uploaded_by': user['_id']}).inserted_id
         return f"File uploaded successfully with ID: {inserted_id}"
     
     
