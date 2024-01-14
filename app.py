@@ -5,6 +5,7 @@ from bson import ObjectId
 import bcrypt
 import os
 import cv2
+from werkzeug.utils import secure_filename
 import numpy as np
 from io import BytesIO
 from gridfs import GridFS
@@ -21,9 +22,9 @@ users_collection = db['users']
 uploads_collection = db['uploads']
 
 # print("connected to mongodb")
-UPLOAD_FOLDER = "C:\\Users\\SHYAM\\OneDrive\\Desktop\\cotton project\\server\\UPLOAD_FOLDER"
+uploads = "C:\\Users\\SHYAM\\OneDrive\\Desktop\\cotton project\\server\\uploads"
 
-app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+app.config['UPLOAD_FOLDER'] = uploads
 grid_fs = GridFS(db, collection='files')
 
 
@@ -125,28 +126,58 @@ def change_resolution(image, scale_percent):
     return resized_image
 
 
-# @app.route('/change_resolution', methods=['POST'])
-# def upload_file():
-#     try:
-#         file = request.files['image']
-#         scale_percent = float(request.form.get('scale_percent', 50))
+def processImage(filename, operation):
+    print(f"the operation is {operation} and filename is {filename}")
+    img = cv2.imread(f"uploads/{filename}")
+    match operation:
+        case "cgray":
+            imgProcessed = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+            newFilename = f"static/{filename}"
+            cv2.imwrite(newFilename, imgProcessed)
+            return newFilename
+        case "resize":
+            scale_percent=1           
+            width = int(img.shape[1] * scale_percent / 100)
+            height = int(img.shape[0] * scale_percent / 100)
+            dim = (width, height)
+            imgProcessed = cv2.resize(img, dim, interpolation=cv2.INTER_AREA)
+            newFilename = f"static/{filename}"
+            cv2.imwrite(newFilename, imgProcessed)
+            return newFilename
+        
+    pass
 
-#         # Read the image
-#         nparr = np.frombuffer(file.read(), np.uint8)
-#         image = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
 
-#         # Change resolution
-#         resized_image = change_resolution(image, scale_percent)
+@app.route('/edit', methods=['POST'])
+def edit():
+    try:
+        file = request.files['image']
+        if file.filename == '':
+            return "error no selected file"
+        if file:
+            filename = secure_filename(file.filename)
+            file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
+            new = processImage(filename, "resize")
+            return send_file(new, as_attachment=True)
 
-#         # Convert the resized image to bytes
-#         retval, buffer = cv2.imencode('.jpg', resized_image)
-#         img_bytes = buffer.tobytes()
+        # scale_percent = float(request.form.get('scale_percent', 50))
 
-#         # Create a BytesIO object and send the resized image
-#         return send_file(BytesIO(img_bytes), mimetype='image/jpeg')
+        # # Read the image
+        # nparr = np.frombuffer(file.read(), np.uint8)
+        # image = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
 
-#     except Exception as e:
-#         return str(e)
+        # # Change resolution
+        # resized_image = change_resolution(image, scale_percent)
+
+        # # Convert the resized image to bytes
+        # retval, buffer = cv2.imencode('.jpg', resized_image)
+        # img_bytes = buffer.tobytes()
+
+        # # Create a BytesIO object and send the resized image
+        # return send_file(BytesIO(img_bytes), mimetype='image/jpeg')
+
+    except Exception as e:
+        return str(e)
 
 
 
