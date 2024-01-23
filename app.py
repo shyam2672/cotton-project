@@ -34,6 +34,8 @@ def test():
     return "Connected to the data base!"
 
 # Register user endpoint
+
+
 @app.route('/register', methods=['POST'])
 def register():
     try:
@@ -74,6 +76,8 @@ def verify_password(plain_password, hashed_password):
     return bcrypt.checkpw(plain_password.encode('utf-8'), hashed_password.encode('utf-8'))
 
 # Login endpoint
+
+
 @app.route('/login', methods=['POST'])
 def login():
     username = request.json.get('username')
@@ -106,16 +110,15 @@ def upload_file():
     # Save the uploaded file to the specified upload folder
     if file:
         file.save(os.path.join(app.config['UPLOAD_FOLDER'], file.filename))
-        file_id = grid_fs.put(file.stream, filename=file.filename, content_type=file.content_type)
+        file_id = grid_fs.put(
+            file.stream, filename=file.filename, content_type=file.content_type)
 
         # Store the file details along with user info in MongoDB
         user = users_collection.find_one({'username': current_user})
         inserted_id = uploads_collection.insert_one(
             {'filid': file_id, 'uploaded_by': user['_id']}).inserted_id
-        return f"File uploaded successfully with ID: {inserted_id}"
-    
-    
-
+        res=processImage(file.filename,"getD")
+        return jsonify({"status":200},{"height":res[0]},{"width":res[1]})
 
 
 def change_resolution(image, scale_percent):
@@ -136,7 +139,7 @@ def processImage(filename, operation):
             cv2.imwrite(newFilename, imgProcessed)
             return newFilename
         case "resize":
-            scale_percent=1           
+            scale_percent = 1
             width = int(img.shape[1] * scale_percent / 100)
             height = int(img.shape[0] * scale_percent / 100)
             dim = (width, height)
@@ -144,7 +147,9 @@ def processImage(filename, operation):
             newFilename = f"static/{filename}"
             cv2.imwrite(newFilename, imgProcessed)
             return newFilename
-        
+        case "getD":
+            return img.shape
+
     pass
 
 
@@ -157,7 +162,7 @@ def edit():
         if file:
             filename = secure_filename(file.filename)
             file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
-            new = processImage(filename, "resize")
+            new = processImage(filename, "cgray")
             return send_file(new, as_attachment=True)
 
         # scale_percent = float(request.form.get('scale_percent', 50))
@@ -178,7 +183,6 @@ def edit():
 
     except Exception as e:
         return str(e)
-
 
 
 if __name__ == '__main__':
