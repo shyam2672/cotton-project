@@ -41,9 +41,9 @@ def generate_hashed_password(password):
 
 
 @app.route("/")
+@jwt_required()
 def test():
-    users_collection.insert_one({"name": "John"})
-    return "Connected to the data base!"
+    return jsonify({"msg": "success"}), 200
 
 
 @app.route("/register", methods=["POST"])
