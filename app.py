@@ -1,121 +1,99 @@
 from flask import Flask, request, jsonify, send_file
-from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt_identity
+from flask_jwt_extended import (
+    JWTManager,
+    create_access_token,
+    jwt_required,
+    get_jwt_identity,
+)
 from pymongo import MongoClient
-from bson import ObjectId
 import bcrypt
 import os
 import cv2
 from werkzeug.utils import secure_filename
-import numpy as np
-from io import BytesIO
 from gridfs import GridFS
 
 app = Flask(__name__)
-# Replace with a secure secret key
-app.config['JWT_SECRET_KEY'] = 'cotton123456'
+app.config["JWT_SECRET_KEY"] = "cotton123456"
 jwt = JWTManager(app)
 
 client = MongoClient(
-    'mongodb+srv://cotton123456:cotton654321@cluster0.q7hrmaj.mongodb.net/cotton?retryWrites=true&w=majority')
-db = client['cotton']
-users_collection = db['users']
-uploads_collection = db['uploads']
+    "mongodb+srv://cotton123456:cotton654321@cluster0.q7hrmaj.mongodb.net/cotton?retryWrites=true&w=majority"
+)
+db = client["cotton"]
+users_collection = db["users"]
+uploads_collection = db["uploads"]
 
-# print("connected to mongodb")
-uploads = "C:\\Users\\SHYAM\\OneDrive\\Desktop\\cotton project\\server\\uploads"
+uploads = "D:\\Downloads\\cotton-back\\uploads"
 
-app.config['UPLOAD_FOLDER'] = uploads
-grid_fs = GridFS(db, collection='files')
+app.config["UPLOAD_FOLDER"] = uploads
+grid_fs = GridFS(db, collection="files")
 
 
-@app.route('/')
+def verify_password(plain_password, hashed_password):
+    return bcrypt.checkpw(
+        plain_password.encode("utf-8"), hashed_password.encode("utf-8")
+    )
+
+
+def generate_hashed_password(password):
+    hashed_password = bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt())
+    return hashed_password.decode("utf-8")
+
+
+@app.route("/")
 def test():
     users_collection.insert_one({"name": "John"})
     return "Connected to the data base!"
 
-# Register user endpoint
-@app.route('/register', methods=['POST'])
+
+@app.route("/register", methods=["POST"])
 def register():
     try:
-        username = request.json.get('username')
-        password = request.json.get('password')
+        username = request.json.get("username")
+        password = request.json.get("password")
         if not username or not password:
-            return jsonify({"msg": "Missing username or password"}), 400
+            return (
+                jsonify({"msg": "Missing username or password", "result": "failure"}),
+                400,
+            )
 
-        existing_user = users_collection.find_one({'username': username})
+        existing_user = users_collection.find_one({"username": username})
         if existing_user:
-            return jsonify({"msg": "Username already exists"}), 400
+            return jsonify({"msg": "Username already exists", "result": "failure"}), 400
 
-        # Implement your password hashing function
         hashed_password = generate_hashed_password(password)
 
-        new_user = {
-            'username': username,
-            'password': hashed_password
-        }
+        new_user = {"username": username, "password": hashed_password}
 
         users_collection.insert_one(new_user)
-        return jsonify({"msg": "User registered successfully"}), 201
+        return (
+            jsonify({"msg": "User registered successfully", "result": "success"}),
+            201,
+        )
+
     except Exception as e:
-        # Handle other exceptions
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"msg": str(e), "result": "failure"}), 500
 
 
-# Function to hash a password
-def generate_hashed_password(password):
-    # Hash the password using bcrypt
-    hashed_password = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt())
-    # Return the hashed password as a string
-    return hashed_password.decode('utf-8')
-
-
-# Function to verify a password
-def verify_password(plain_password, hashed_password):
-    return bcrypt.checkpw(plain_password.encode('utf-8'), hashed_password.encode('utf-8'))
-
-# Login endpoint
-@app.route('/login', methods=['POST'])
+@app.route("/login", methods=["POST"])
 def login():
-    username = request.json.get('username')
-    password = request.json.get('password')
+    username = request.json.get("username")
+    password = request.json.get("password")
 
     if not username or not password:
-        return jsonify({"msg": "Missing username or password"}), 401
+        return (
+            jsonify({"msg": "Missing username or password", "result": "failure"}),
+            401,
+        )
 
-    user = users_collection.find_one({'username': username})
-    # Implement your password verification function
-    if user and verify_password(password, user['password']):
+    user = users_collection.find_one({"username": username})
+
+    if user and verify_password(password, user["password"]):
         access_token = create_access_token(identity=username)
-        return jsonify(access_token=access_token), 200
+        return jsonify({"access_token": access_token, "result": "success"}), 200
+
     else:
-        return jsonify({"msg": "Invalid credentials"}), 401
-
-
-# Protected endpoint for uploading images
-@app.route('/upload', methods=['POST'])
-@jwt_required()
-def upload_file():
-    current_user = get_jwt_identity()
-    if 'file' not in request.files:
-        return 'No file part'
-
-    file = request.files['file']
-    print(file)
-    if file.filename == '':
-        return 'No selected file'
-    # Save the uploaded file to the specified upload folder
-    if file:
-        file.save(os.path.join(app.config['UPLOAD_FOLDER'], file.filename))
-        file_id = grid_fs.put(file.stream, filename=file.filename, content_type=file.content_type)
-
-        # Store the file details along with user info in MongoDB
-        user = users_collection.find_one({'username': current_user})
-        inserted_id = uploads_collection.insert_one(
-            {'filid': file_id, 'uploaded_by': user['_id']}).inserted_id
-        return f"File uploaded successfully with ID: {inserted_id}"
-    
-    
-
+        return jsonify({"msg": "Invalid credentials", "result": "failure"}), 401
 
 
 def change_resolution(image, scale_percent):
@@ -136,7 +114,7 @@ def processImage(filename, operation):
             cv2.imwrite(newFilename, imgProcessed)
             return newFilename
         case "resize":
-            scale_percent=1           
+            scale_percent = 50
             width = int(img.shape[1] * scale_percent / 100)
             height = int(img.shape[0] * scale_percent / 100)
             dim = (width, height)
@@ -144,42 +122,52 @@ def processImage(filename, operation):
             newFilename = f"static/{filename}"
             cv2.imwrite(newFilename, imgProcessed)
             return newFilename
-        
+        case "getD":
+            return img.shape
+
     pass
 
 
-@app.route('/edit', methods=['POST'])
+@app.route("/upload", methods=["POST"])
+@jwt_required()
+def upload_file():
+    current_user = get_jwt_identity()
+    if "file" not in request.files:
+        return jsonify({"msg": "No file part"}), 400
+
+    file = request.files["file"]
+    if file.filename == "":
+        return jsonify({"msg": "No selected file"}), 400
+
+    if file:
+        file.save(os.path.join(app.config["UPLOAD_FOLDER"], file.filename))
+        file_id = grid_fs.put(
+            file.stream, filename=file.filename, content_type=file.content_type
+        )
+
+        user = users_collection.find_one({"username": current_user})
+        uploads_collection.insert_one({"filid": file_id, "uploaded_by": user["_id"]})
+
+        res = processImage(file.filename, "getD")
+        return jsonify({"length": res[0], "width": res[1]}), 200
+
+
+@app.route("/edit", methods=["POST"])
+@jwt_required()
 def edit():
     try:
-        file = request.files['image']
-        if file.filename == '':
+        file = request.files["image"]
+        if file.filename == "":
             return "error no selected file"
         if file:
             filename = secure_filename(file.filename)
-            file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
-            new = processImage(filename, "resize")
+            file.save(os.path.join(app.config["UPLOAD_FOLDER"], filename))
+            new = processImage(filename, "cgray")
             return send_file(new, as_attachment=True)
-
-        # scale_percent = float(request.form.get('scale_percent', 50))
-
-        # # Read the image
-        # nparr = np.frombuffer(file.read(), np.uint8)
-        # image = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
-
-        # # Change resolution
-        # resized_image = change_resolution(image, scale_percent)
-
-        # # Convert the resized image to bytes
-        # retval, buffer = cv2.imencode('.jpg', resized_image)
-        # img_bytes = buffer.tobytes()
-
-        # # Create a BytesIO object and send the resized image
-        # return send_file(BytesIO(img_bytes), mimetype='image/jpeg')
 
     except Exception as e:
         return str(e)
 
 
-
-if __name__ == '__main__':
+if __name__ == "__main__":
     app.run(debug=True)
