@@ -13,20 +13,23 @@ from werkzeug.utils import secure_filename
 from gridfs import GridFS
 from lines import fiberLen
 
+import certifi
+
+ca = certifi.where()
+
 app = Flask(__name__)
 app.config["JWT_SECRET_KEY"] = "cotton123456"
 jwt = JWTManager(app)
 
 client = MongoClient(
-    "mongodb+srv://cotton123456:cotton654321@cluster0.q7hrmaj.mongodb.net/cotton?retryWrites=true&w=majority"
+    "mongodb+srv://cotton123456:cotton654321@cluster0.q7hrmaj.mongodb.net/cotton?retryWrites=true&w=majority",
+    tlsCAFile=ca,
 )
 db = client["cotton"]
 users_collection = db["users"]
 uploads_collection = db["uploads"]
 
-uploads = "D:\\Downloads\\cotton-back\\uploads"
-
-app.config["UPLOAD_FOLDER"] = uploads
+app.config["UPLOAD_FOLDER"] = "uploads"
 grid_fs = GridFS(db, collection="files")
 
 
@@ -126,7 +129,9 @@ def processImage(filename, operation, scale):
         case "getD":
             return img.shape
         case "lines":
-            return fiberLen(img, scale)
+            res = fiberLen(f"uploads/{filename}", scale)
+            print(res)
+            return res
 
     pass
 
@@ -148,12 +153,12 @@ def upload_file():
             file.stream, filename=file.filename, content_type=file.content_type
         )
 
-        scale = request.json.get("scale")
+        # scale = request.json.get("scale")
 
         user = users_collection.find_one({"username": current_user})
         uploads_collection.insert_one({"filid": file_id, "uploaded_by": user["_id"]})
 
-        res = processImage(file.filename, "getD", scale)
+        res = processImage(file.filename, "lines", 1)
         return jsonify({"length": res}), 200
 
 

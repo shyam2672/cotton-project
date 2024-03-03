@@ -25,7 +25,7 @@ def scale_calibration(img):
     # define calibration (known distance / distance in pixels of scale)
     calibration = 0.5 / w
     # plot bounding rectangle to debug
-    plt.imshow(cv.rectangle(scale, cv.boundingRect(scale_bin), (255, 255, 0), 2))
+    # plt.imshow(cv.rectangle(scale, cv.boundingRect(scale_bin), (255, 255, 0), 2))
 
     return calibration
 
@@ -104,6 +104,6 @@ def fiberLen(img, calibration, plot=True):
                 color=(150, 150, 150),
                 thickness=2,
             )
-        plt.imshow(fiber_copy)
+        # plt.imshow(fiber_copy)
 
     return measurement
