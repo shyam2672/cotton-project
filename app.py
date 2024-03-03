@@ -11,6 +11,7 @@ import os
 import cv2
 from werkzeug.utils import secure_filename
 from gridfs import GridFS
+from lines import fiberLen
 
 app = Flask(__name__)
 app.config["JWT_SECRET_KEY"] = "cotton123456"
@@ -104,7 +105,7 @@ def change_resolution(image, scale_percent):
     return resized_image
 
 
-def processImage(filename, operation):
+def processImage(filename, operation, scale):
     print(f"the operation is {operation} and filename is {filename}")
     img = cv2.imread(f"uploads/{filename}")
     match operation:
@@ -124,6 +125,8 @@ def processImage(filename, operation):
             return newFilename
         case "getD":
             return img.shape
+        case "lines":
+            return fiberLen(img, scale)
 
     pass
 
@@ -145,11 +148,13 @@ def upload_file():
             file.stream, filename=file.filename, content_type=file.content_type
         )
 
+        scale = request.json.get("scale")
+
         user = users_collection.find_one({"username": current_user})
         uploads_collection.insert_one({"filid": file_id, "uploaded_by": user["_id"]})
 
-        res = processImage(file.filename, "getD")
-        return jsonify({"length": res[0], "width": res[1]}), 200
+        res = processImage(file.filename, "getD", scale)
+        return jsonify({"length": res}), 200
 
 
 @app.route("/edit", methods=["POST"])
